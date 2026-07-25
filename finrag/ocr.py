@@ -2,6 +2,7 @@ import fitz  # PyMuPDF
 from PIL import Image
 from rapidocr_onnxruntime import RapidOCR
 from langchain_core.documents import Document
+import numpy as np
 
 ocr_engine = RapidOCR()
 
@@ -24,8 +25,11 @@ def ocr_pdf(pdf_path: str):
             pix.samples
         )
 
+        # ÉP KIỂU ẢNH SANG NUMPY ARRAY TRƯỚC KHI OCR
+        img_array = np.array(img)
+
         # OCR
-        result, _ = ocr_engine(img)
+        result, _ = ocr_engine(img_array)
 
         text = ""
 

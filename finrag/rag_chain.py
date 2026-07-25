@@ -1,7 +1,11 @@
 from langchain_core.prompts import ChatPromptTemplate
 
 from finrag.llm import get_llm
+# Tìm dòng cũ (nếu có):
+# from finrag.retriever import get_retriever
 
+# Thay thế bằng dòng mới:
+from finrag.retriever import create_retriever
 
 PROMPT = ChatPromptTemplate.from_template("""
 Bạn là chuyên gia tư vấn thuế Việt Nam.
