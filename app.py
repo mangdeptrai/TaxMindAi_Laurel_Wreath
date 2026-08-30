@@ -1,8 +1,12 @@
 import sys
+import os
 import config
 from finrag.retriever import create_retriever
 from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import OllamaEmbeddings
+
+# Xác định thư mục gốc chứa file app.py để tạo đường dẫn tương đối an toàn
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # 1. Module Quyết định (Decision)
 from decision import advisor
@@ -44,9 +48,46 @@ def main():
         
         choice = input("\nNhập lựa chọn của bạn (0-5): ")
         
-        if choice == '1':
-            print("\n[Đang chạy Module Decision...]")
-            # TODO: Thay bằng hàm thực tế
+        if choice == '1': 
+            print("\n[Đang chạy Module Decision...]") 
+            try: 
+                    from taxtwin.loader import load_company 
+                    from montecarlo.simulation import ( 
+                                                       monte_carlo, 
+                                                       summarize_results, 
+                                                       probability_over, 
+                                                       calculate_percentiles,
+                                                       ) 
+                    from decision.prompt_builder import build_prompt 
+                    from finrag.llm import get_llm 
+                    
+                    company_file = os.path.join(BASE_DIR, "data", "company", "company.csv")
+                    companies = load_company(company_file) 
+                    print("\nCác doanh nghiệp có trong dữ liệu:") 
+                    for i, c in enumerate(companies): 
+                        print(f"{i + 1}. {c.company_name}") 
+                    
+                    idx = int(input("Chọn doanh nghiệp (nhập số thứ tự): ")) - 1 
+                    company = companies[idx] 
+                    
+                    print(f"\nĐang mô phỏng Monte Carlo cho '{company.company_name}'...") 
+                    results = monte_carlo(company, 1000) 
+                    summary = summarize_results(results) 
+                    probability = probability_over(results, 900_000_000) 
+                    percentiles = calculate_percentiles(results) 
+                    
+                    prompt = build_prompt(summary, probability, percentiles) 
+                    
+                    print("\nĐang nhờ AI viết báo cáo...") 
+                    llm = get_llm() 
+                    response = llm.invoke(prompt) 
+                    
+                    print("\n=== BÁO CÁO CỐ VẤN THUẾ ===") 
+                    print(response.content) 
+                    print("========================\n") 
+                    
+            except Exception as e: 
+                    print(f"\n[Lỗi] Đã xảy ra vấn đề khi chạy Decision Advisor: {e}") 
             input("\n[Hoàn thành] Nhấn Enter để quay lại menu chính...")
             
         elif choice == '2':
@@ -55,18 +96,15 @@ def main():
             
             if user_question != '0':
                 try:
-                    # 1. Import các hàm cần thiết ngay tại đây
-                    from langchain_community.embeddings import OllamaEmbeddings
                     from finrag.vector_store import load_vector_store
                     
-                    # 2. Khởi tạo mô hình nhúng (Embeddings)
                     embeddings = OllamaEmbeddings(model="nomic-embed-text")
                     
-                    # 3. Tải Database
-                    # LƯU Ý: Thay "thu_muc_chua_faiss_index" bằng tên thư mục chứa file .faiss của bạn
-                    vector_store = load_vector_store("db_thuemwg", embeddings)
+                    # Tải Database bằng đường dẫn tương đối dựa trên BASE_DIR
+                    # Bạn có thể thay đổi "db_thuemwg" hoặc "db_luatthue" tùy theo nhu cầu
+                    db_path = os.path.join(BASE_DIR, "db_thuemwg")
+                    vector_store = load_vector_store(db_path, embeddings)
                     
-                    # 4. Khởi tạo Retriever
                     my_retriever = create_retriever(vector_store) 
                     
                     print("\nĐang suy nghĩ và tra cứu tài liệu...")
@@ -81,14 +119,40 @@ def main():
 
             input("\n[Hoàn thành] Nhấn Enter để quay lại menu chính...")
 
-        elif choice == '3':
-            print("\n[Đang chạy Module Forecasting...]")
-            input("\n[Hoàn thành] Nhấn Enter để quay lại menu chính...")
-
+        elif choice == '3': 
+                print("\n[Đang chạy Module Forecasting...]") 
+                try: 
+                    from taxtwin.loader import load_company 
+                    from taxtwin.calculator import calculate_vat, calculate_cit 
+                    from forecasting.forecast import forecast_company 
+                
+                    company_file = os.path.join(BASE_DIR, "data", "company", "company.csv")
+                    companies = load_company(company_file) 
+                    print("\nCác doanh nghiệp có trong dữ liệu:") 
+                    for i, c in enumerate(companies): 
+                        print(f"{i + 1}. {c.company_name}") 
+                    
+                    idx = int(input("Chọn doanh nghiệp (nhập số thứ tự): ")) - 1 
+                    company = companies[idx] 
+                
+                    revenue_growth = float(input("Nhập % tăng trưởng doanh thu dự kiến (ví dụ 0.15 cho 15%): ")) 
+                    cost_growth = float(input("Nhập % tăng trưởng chi phí dự kiến (ví dụ 0.08 cho 8%): ")) 
+                
+                    future = forecast_company(company, revenue_growth, cost_growth) 
+                
+                    print(f"\n===== DỰ BÁO CHO '{future.company_name}' =====") 
+                    print(f"Doanh thu dự kiến : {future.revenue:,.0f}") 
+                    print(f"Chi phí dự kiến : {future.cost:,.0f}") 
+                    print(f"VAT dự kiến : {calculate_vat(future):,.0f}") 
+                    print(f"CIT (TNDN) dự kiến: {calculate_cit(future):,.0f}") 
+                    print("========================\n") 
+                except Exception as e: 
+                    print(f"\n[Lỗi] Đã xảy ra vấn đề khi chạy Forecasting: {e}") 
+                input("\n[Hoàn thành] Nhấn Enter để quay lại menu chính...")
+                
         elif choice == '4':
             print("\n[ĐANG CHẠY MODULE MONTE CARLO]")
-
-            try:
+            try:    
                 import csv
                 from montecarlo.simulation import (
                     monte_carlo,
@@ -96,16 +160,11 @@ def main():
                     calculate_percentiles
                 )
 
-                # Đọc danh sách doanh nghiệp
                 companies = []
+                company_file = os.path.join(BASE_DIR, "data", "company", "company.csv")
 
-                with open(
-                    "data/company/company.csv",
-                    "r",
-                    encoding="utf-8"
-                ) as file:
+                with open(company_file, "r", encoding="utf-8") as file:
                     reader = csv.DictReader(file)
-
                     for row in reader:
                         company = models.Company(
                             company_name=row["company_name"],
@@ -114,262 +173,105 @@ def main():
                             vat_input=float(row["vat_input"]),
                             vat_output=float(row["vat_output"])
                         )
-
                         companies.append(company)
 
-                # Hiển thị doanh nghiệp
                 print("\n--- CHỌN DOANH NGHIỆP ---")
-
                 for i, company in enumerate(companies, 1):
                     print(f"{i}. {company.company_name}")
 
-                company_choice = int(
-                    input("\nChọn doanh nghiệp: ")
-                )
-
+                company_choice = int(input("\nChọn doanh nghiệp: "))
                 company = companies[company_choice - 1]
 
-                # Nhập số lần mô phỏng
-                num_simulations = int(
-                    input("Nhập số lần mô phỏng: ")
-                )
+                num_simulations = int(input("Nhập số lần mô phỏng: "))
+                print(f"\nĐang thực hiện {num_simulations} lần mô phỏng cho {company.company_name}...")
 
-                print(
-                    f"\nĐang thực hiện {num_simulations} "
-                    f"lần mô phỏng cho {company.company_name}..."
-                )
-
-                # Chạy Monte Carlo
-                results = monte_carlo(
-                    company,
-                    num_simulations
-                )
-
-                # Thống kê
+                results = monte_carlo(company, num_simulations)
                 summary = summarize_results(results)
                 percentiles = calculate_percentiles(results)
 
                 print("\n========== KẾT QUẢ MONTE CARLO ==========")
-
-                print(
-                    f"Doanh nghiệp: {company.company_name}"
-                )
-
-                print(
-                    f"Giá trị CIT trung bình: "
-                    f"{summary['average_cit']:,.0f} VND"
-                )
-
-                print(
-                    f"Độ lệch chuẩn CIT: "
-                    f"{summary['std_cit']:,.0f} VND"
-                )
-
-                print(
-                    f"CIT thấp nhất: "
-                    f"{summary['min_cit']:,.0f} VND"
-                )
-
-                print(
-                    f"CIT cao nhất: "
-                    f"{summary['max_cit']:,.0f} VND"
-                )
-
-                print(
-                    f"P5: "
-                    f"{percentiles['p5']:,.0f} VND"
-                )
-
-                print(
-                    f"Median (P50): "
-                    f"{percentiles['p50']:,.0f} VND"
-                )
-
-                print(
-                    f"P95: "
-                    f"{percentiles['p95']:,.0f} VND"
-                )
-
+                print(f"Doanh nghiệp: {company.company_name}")
+                print(f"Giá trị CIT trung bình: {summary['average_cit']:,.0f} VND")
+                print(f"Độ lệch chuẩn CIT: {summary['std_cit']:,.0f} VND")
+                print(f"CIT thấp nhất: {summary['min_cit']:,.0f} VND")
+                print(f"CIT cao nhất: {summary['max_cit']:,.0f} VND")
+                print(f"P5: {percentiles['p5']:,.0f} VND")
+                print(f"Median (P50): {percentiles['p50']:,.0f} VND")
+                print(f"P95: {percentiles['p95']:,.0f} VND")
                 print("==========================================")
 
             except Exception as e:
-                print(
-                    f"\n[Lỗi] Đã xảy ra vấn đề "
-                    f"khi chạy Monte Carlo: {e}"
-                )
+                print(f"\n[Lỗi] Đã xảy ra vấn đề khi chạy Monte Carlo: {e}")
 
-            input(
-                "\n[Hoàn thành] Nhấn Enter "
-                "để quay lại menu chính..."
-            )
+            input("\n[Hoàn thành] Nhấn Enter để quay lại menu chính...")
 
         elif choice == '5':
             print("\n[ĐANG CHẠY MODULE TAXTWIN]")
 
             try:
-                    import csv
-                    from simulation.scenario import simulate_forecast
+                import csv
+                from simulation.scenario import simulate_forecast
 
-                    # Đọc danh sách doanh nghiệp
-                    companies = []
+                companies = []
+                company_file = os.path.join(BASE_DIR, "data", "company", "company.csv")
 
-                    with open(
-                        "data/company/company.csv",
-                        "r",
-                        encoding="utf-8"
-                    ) as file:
-                        reader = csv.DictReader(file)
-
-                        for row in reader:
-                            company = models.Company(
-                                company_name=row["company_name"],
-                                revenue=float(row["revenue"]),
-                                cost=float(row["cost"]),
-                                vat_input=float(row["vat_input"]),
-                                vat_output=float(row["vat_output"])
-                            )
-
-                            companies.append(company)
-
-                    # Chọn doanh nghiệp
-                    print("\n--- CHỌN DOANH NGHIỆP ---")
-
-                    for i, company in enumerate(companies, 1):
-                        print(f"{i}. {company.company_name}")
-
-                    company_choice = int(
-                        input("\nChọn doanh nghiệp: ")
-                    )
-
-                    company = companies[company_choice - 1]
-
-                    # Thông tin hiện tại
-                    current_profit = calculator.calculate_profit(company)
-                    current_vat = calculator.calculate_vat(company)
-                    current_cit = calculator.calculate_cit(company)
-
-                    print("\n--- TÌNH TRẠNG HIỆN TẠI ---")
-
-                    print(
-                        f"Doanh thu: "
-                        f"{company.revenue:,.0f} VND"
-                    )
-
-                    print(
-                        f"Chi phí: "
-                        f"{company.cost:,.0f} VND"
-                    )
-
-                    print(
-                        f"Lợi nhuận: "
-                        f"{current_profit:,.0f} VND"
-                    )
-
-                    print(
-                        f"VAT: "
-                        f"{current_vat:,.0f} VND"
-                    )
-
-                    print(
-                        f"CIT: "
-                        f"{current_cit:,.0f} VND"
-                    )
-
-                    # Nhập kịch bản
-                    revenue_percent = float(
-                        input(
-                            "\nNhập % thay đổi doanh thu: "
+                with open(company_file, "r", encoding="utf-8") as file:
+                    reader = csv.DictReader(file)
+                    for row in reader:
+                        company = models.Company(
+                            company_name=row["company_name"],
+                            revenue=float(row["revenue"]),
+                            cost=float(row["cost"]),
+                            vat_input=float(row["vat_input"]),
+                            vat_output=float(row["vat_output"])
                         )
-                    )
+                        companies.append(company)
 
-                    cost_percent = float(
-                        input(
-                            "Nhập % thay đổi chi phí: "
-                        )
-                    )
+                print("\n--- CHỌN DOANH NGHIỆP ---")
+                for i, company in enumerate(companies, 1):
+                    print(f"{i}. {company.company_name}")
 
-                    print("\nĐang phân tích kịch bản...")
+                company_choice = int(input("\nChọn doanh nghiệp: "))
+                company = companies[company_choice - 1]
 
-                    # Tạo doanh nghiệp sau kịch bản
-                    future = simulate_forecast(
-                        company,
-                        revenue_percent,
-                        cost_percent
-                    )
+                current_profit = calculator.calculate_profit(company)
+                current_vat = calculator.calculate_vat(company)
+                current_cit = calculator.calculate_cit(company)
 
-                    future_profit = calculator.calculate_profit(
-                        future
-                    )
+                print("\n--- TÌNH TRẠNG HIỆN TẠI ---")
+                print(f"Doanh thu: {company.revenue:,.0f} VND")
+                print(f"Chi phí: {company.cost:,.0f} VND")
+                print(f"Lợi nhuận: {current_profit:,.0f} VND")
+                print(f"VAT: {current_vat:,.0f} VND")
+                print(f"CIT: {current_cit:,.0f} VND")
 
-                    future_vat = calculator.calculate_vat(
-                        future
-                    )
+                revenue_percent = float(input("\nNhập % thay đổi doanh thu: "))
+                cost_percent = float(input("Nhập % thay đổi chi phí: "))
 
-                    future_cit = calculator.calculate_cit(
-                        future
-                    )
+                print("\nĐang phân tích kịch bản...")
+                future = simulate_forecast(company, revenue_percent, cost_percent)
 
-                    # Hiển thị kết quả
-                    print("\n========== KẾT QUẢ TAXTWIN ==========")
+                future_profit = calculator.calculate_profit(future)
+                future_vat = calculator.calculate_vat(future)
+                future_cit = calculator.calculate_cit(future)
 
-                    print(f"\nDoanh nghiệp: {company.company_name}")
-
-                    print("\n                 HIỆN TẠI          KỊCH BẢN")
-
-                    print(
-                        f"Doanh thu:       "
-                        f"{company.revenue:>15,.0f}   "
-                        f"{future.revenue:>15,.0f}"
-                    )
-
-                    print(
-                        f"Chi phí:         "
-                        f"{company.cost:>15,.0f}   "
-                        f"{future.cost:>15,.0f}"
-                    )
-
-                    print(
-                        f"Lợi nhuận:       "
-                        f"{current_profit:>15,.0f}   "
-                        f"{future_profit:>15,.0f}"
-                    )
-
-                    print(
-                        f"VAT:             "
-                        f"{current_vat:>15,.0f}   "
-                        f"{future_vat:>15,.0f}"
-                    )
-
-                    print(
-                        f"CIT:             "
-                        f"{current_cit:>15,.0f}   "
-                        f"{future_cit:>15,.0f}"
-                    )
-
-                    print("\n--- THAY ĐỔI ---")
-
-                    print(
-                        f"Lợi nhuận thay đổi: "
-                        f"{future_profit - current_profit:,.0f} VND"
-                    )
-
-                    print(
-                        f"CIT thay đổi: "
-                        f"{future_cit - current_cit:,.0f} VND"
-                    )
-
-                    print("======================================")
+                print("\n========== KẾT QUẢ TAXTWIN ==========")
+                print(f"\nDoanh nghiệp: {company.company_name}")
+                print("\n                 HIỆN TẠI          KỊCH BẢN")
+                print(f"Doanh thu:       {company.revenue:>15,.0f}   {future.revenue:>15,.0f}")
+                print(f"Chi phí:         {company.cost:>15,.0f}   {future.cost:>15,.0f}")
+                print(f"Lợi nhuận:       {current_profit:>15,.0f}   {future_profit:>15,.0f}")
+                print(f"VAT:             {current_vat:>15,.0f}   {future_vat:>15,.0f}")
+                print(f"CIT:             {current_cit:>15,.0f}   {future_cit:>15,.0f}")
+                print("\n--- THAY ĐỔI ---")
+                print(f"Lợi nhuận thay đổi: {future_profit - current_profit:,.0f} VND")
+                print(f"CIT thay đổi: {future_cit - current_cit:,.0f} VND")
+                print("======================================")
 
             except Exception as e:
-                    print(
-                        f"\n[Lỗi] Đã xảy ra vấn đề "
-                        f"khi chạy Taxtwin: {e}"
-                    )
+                print(f"\n[Lỗi] Đã xảy ra vấn đề khi chạy Taxtwin: {e}")
 
-            input(
-                    "\n[Hoàn thành] Nhấn Enter "
-                    "để quay lại menu chính..."
-                )
+            input("\n[Hoàn thành] Nhấn Enter để quay lại menu chính...")
             
         elif choice == '0':
             print("\nĐã thoát hệ thống. Tạm biệt!")
