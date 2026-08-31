@@ -3,4 +3,8 @@
 __pycache__/
 *.py[cod]
 .vscode/
-.idea/
+.idea/venv/
+
+venv/
+.venv/
+
