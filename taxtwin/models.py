@@ -3,8 +3,13 @@ from dataclasses import dataclass
 
 @dataclass
 class Company:
-    company_name: str
+    store_id: str
+    month: str
     revenue: float
-    cost: float
-    vat_input: float
-    vat_output: float
+    cogs: float
+    operating_cost: float
+    profit_before_tax: float
+    orders: int
+    customers: int
+    conversion_rate: float
+    ending_inventory: int
