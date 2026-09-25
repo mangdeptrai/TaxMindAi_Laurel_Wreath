@@ -20,6 +20,18 @@ def calculate_cit(company: Company, tax_rate=0.20):
     return profit * tax_rate
 
 
+def calculate_vat(company: Company, vat_rate=0.10):
+    """
+    Tính thuế VAT phải nộp (VAT đầu ra - VAT đầu vào).
+    """
+    if hasattr(company, "vat_output") and hasattr(company, "vat_input"):
+        vat = company.vat_output - company.vat_input
+    else:
+        vat = (company.revenue - company.cogs) * vat_rate
+
+    return max(0, vat)
+
+
 # ==========================================
 # SCENARIO SIMULATION
 # ==========================================

@@ -1,194 +1,80 @@
-"""
-Module Monte Carlo Simulation.
-
-Module này thực hiện mô phỏng Monte Carlo để dự báo
-thuế Thu nhập doanh nghiệp (CIT) trong nhiều kịch bản
-tăng trưởng doanh thu và chi phí.
-
-Bao gồm các chức năng:
-- Sinh tỷ lệ tăng trưởng ngẫu nhiên.
-- Thực hiện một lần mô phỏng.
-- Thực hiện nhiều lần mô phỏng Monte Carlo.
-- Thống kê kết quả mô phỏng.
-- Tính xác suất vượt ngưỡng.
-- Tính các phân vị (Percentiles).
-"""
-
-import random
-import statistics
-
-def random_growth(
-    minimum: float,
-    maximum: float
-):
-    """
-    Sinh ngẫu nhiên một tỷ lệ tăng trưởng.
-
-    Args:
-        minimum: Giá trị nhỏ nhất của tỷ lệ tăng trưởng.
-        maximum: Giá trị lớn nhất của tỷ lệ tăng trưởng.
-
-    Returns:
-        Một giá trị ngẫu nhiên trong khoảng [minimum, maximum].
-    """
-
-    return random.uniform(
-        minimum,
-        maximum
-    )
-from simulation.scenario import simulate_forecast
+import numpy as np
+from copy import copy
 from taxtwin.calculator import calculate_cit
 
 
-def one_simulation(company):
+def simulate_forecast(company, revenue_growth, cogs_growth, operating_cost_growth=None):
     """
-    Thực hiện một lần mô phỏng doanh nghiệp.
-
-    Doanh thu và chi phí sẽ được tăng theo
-    các tỷ lệ ngẫu nhiên, sau đó tính thuế
-    Thu nhập doanh nghiệp (CIT).
-
-    Args:
-        company: Doanh nghiệp gốc.
-
-    Returns:
-        Dictionary chứa:
-            - revenue_growth
-            - cost_growth
-            - cit
+    Tạo một đối tượng Company mới với các tỷ lệ tăng trưởng giả định.
     """
-    revenue_growth = random_growth(10, 20)
+    new_company = copy(company)
+    new_company.revenue = company.revenue * (1 + revenue_growth)
+    
+    if operating_cost_growth is not None:
+        new_company.cogs = company.cogs * (1 + cogs_growth)
+        new_company.operating_cost = company.operating_cost * (1 + operating_cost_growth)
+    else:
+        new_company.cogs = company.cogs * (1 + cogs_growth)
+        new_company.operating_cost = company.operating_cost * (1 + cogs_growth)
+        
+    return new_company
 
-    cost_growth = random_growth(5, 10)
 
-    future = simulate_forecast(
-        company,
-        revenue_growth,
-        cost_growth
-    )
-
-    cit = calculate_cit(future)
-
-    return {
-        "revenue_growth": revenue_growth,
-        "cost_growth": cost_growth,
-        "cit": cit
-    }
-
-def monte_carlo(
-    company,
-    num_simulations: int
-):
+def monte_carlo(company, num_simulations=1000):
     """
-    Thực hiện nhiều lần mô phỏng Monte Carlo.
-
-    Args:
-        company: Doanh nghiệp cần mô phỏng.
-        num_simulations: Số lần mô phỏng.
-
-    Returns:
-        Danh sách kết quả của từng lần mô phỏng.
+    Chạy mô phỏng Monte Carlo cho thuế CIT của doanh nghiệp/cửa hàng.
     """
     results = []
+    
+    revenue_growths = np.random.normal(0.10, 0.05, num_simulations)
+    cost_growths = np.random.normal(0.05, 0.03, num_simulations)
 
     for i in range(num_simulations):
-
-        result = one_simulation(company)
-
-        results.append(result)
+        rev_g = revenue_growths[i]
+        cost_g = cost_growths[i]
+        
+        try:
+            simulated_company = simulate_forecast(company, rev_g, cost_g, cost_g)
+        except TypeError:
+            simulated_company = simulate_forecast(company, rev_g, cost_g)
+            
+        cit = calculate_cit(simulated_company)
+        results.append(cit)
 
     return results
 
+
 def summarize_results(results):
     """
-    Tính các thống kê mô tả của kết quả mô phỏng.
-
-    Bao gồm:
-
-    - Giá trị trung bình.
-    - Độ lệch chuẩn.
-    - Giá trị nhỏ nhất.
-    - Giá trị lớn nhất.
-
-    Args:
-        results: Danh sách kết quả mô phỏng.
-
-    Returns:
-        Dictionary chứa các thống kê của CIT.
+    Tính các chỉ số thống kê cơ bản từ kết quả mô phỏng.
     """
-    cit_values = []
-
-    for result in results:
-        cit_values.append(result["cit"])
-
+    results_arr = np.array(results)
     return {
-    "average_cit": sum(cit_values) / len(cit_values),
-    "std_cit": statistics.stdev(cit_values),
-    "min_cit": min(cit_values),
-    "max_cit": max(cit_values)
-}
-def calculate_std(results):
-    """
-    Tính độ lệch chuẩn của CIT.
+        "average_cit": float(np.mean(results_arr)),
+        "std_cit": float(np.std(results_arr)),
+        "min_cit": float(np.min(results_arr)),
+        "max_cit": float(np.max(results_arr)),
+    }
 
-    Args:
-        results: Danh sách kết quả mô phỏng.
 
-    Returns:
-        Độ lệch chuẩn của CIT.
-    """
-    cit_values = []
-
-    for result in results:
-        cit_values.append(result["cit"])
-
-    return statistics.stdev(cit_values)
-def probability_over(
-    results,
-    threshold: float
-):
-    """
-    Tính xác suất CIT vượt quá một ngưỡng.
-
-    Args:
-        results: Danh sách kết quả mô phỏng.
-        threshold: Ngưỡng CIT cần kiểm tra.
-
-    Returns:
-        Xác suất (0 đến 1) mà CIT lớn hơn threshold.
-    """
-    count = 0
-
-    for result in results:
-
-        if result["cit"] > threshold:
-            count += 1
-
-    return count / len(results)
 def calculate_percentiles(results):
     """
-    Tính các phân vị của CIT.
-
-    Bao gồm:
-
-    - P5
-    - P50 (Median)
-    - P95
-
-    Args:
-        results: Danh sách kết quả mô phỏng.
-
-    Returns:
-        Dictionary chứa các phân vị của CIT.
+    Tính các mốc phân vị P5, P50 (Median), P95.
     """
-    cit_values = sorted(
-        result["cit"] for result in results
-    )
-
-    n = len(cit_values)
-
+    results_arr = np.array(results)
     return {
-        "p5": cit_values[int(0.05 * n)],
-        "p50": cit_values[int(0.50 * n)],
-        "p95": cit_values[int(0.95 * n)]
+        "p5": float(np.percentile(results_arr, 5)),
+        "p50": float(np.percentile(results_arr, 50)),
+        "p95": float(np.percentile(results_arr, 95)),
     }
+
+
+def probability_over(results, threshold):
+    """
+    Tính xác suất (tỷ lệ %) kết quả thuế CIT vượt quá một ngưỡng (threshold) nhất định.
+    """
+    results_arr = np.array(results)
+    if len(results_arr) == 0:
+        return 0.0
+    count_over = np.sum(results_arr > threshold)
+    return float(count_over / len(results_arr))

@@ -7,7 +7,7 @@ from finrag.retriever import create_retriever
 from langchain_community.vectorstores import FAISS
 from langchain_ollama import OllamaEmbeddings
 
-# Xác định thư mục gốc chứa file app.py để tạo đường dẫn tương đối an toàn
+# Xác định thư mục gốc chứa file app.py để tạo dẫn tương đối an toàn
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # 1. Module Quyết định (Decision)
@@ -34,10 +34,11 @@ from taxtwin import models
 def init_system():
     """Khởi tạo hệ thống"""
     print("=" * 50)
-    print(" ĐANG KHỞI ĐỘNG HỆ THỐNG TAXMINDAI LAUREL WREATH ")
+    print(" ĐANG KHỜI ĐỘNG HỆ THỐNG TAXMINDAI LAUREL WREATH ")
     print("=" * 50)
 
 
+# DANH MỤC KHAI BÁO CÁC VĂN BẢN PHÁP LUẬT
 VAN_BAN_INFO = {
     "data/knowledge/laws/law_vat.pdf": {
         "loai": "Luat",
@@ -51,21 +52,45 @@ VAN_BAN_INFO = {
         "hieu_luc_tu": date(2025, 10, 1),
         "het_hieu_luc": None,
     },
+    "data/knowledge/decrees/decree_123.pdf": {
+        "loai": "Nghi dinh",
+        "ten": "Nghị định số 123/2020/NĐ-CP (Quy định về hóa đơn, chứng từ)",
+        "hieu_luc_tu": date(2022, 7, 1),
+        "het_hieu_luc": None,
+    },
+    "data/knowledge/decrees/decree_125.pdf": {
+        "loai": "Nghi dinh",
+        "ten": "Nghị định số 125/2020/NĐ-CP (Xử phạt VPHC về thuế, hóa đơn)",
+        "hieu_luc_tu": date(2020, 12, 5),
+        "het_hieu_luc": None,
+    },
     "data/knowledge/decrees/decree_70.pdf": {
         "loai": "Nghi dinh",
-        "ten": "Nghị định số 68/2026/NĐ-CP (thuế hộ/cá nhân kinh doanh)",
+        "ten": "Nghị định số 68/2026/NĐ-CP (Thuế hộ/cá nhân kinh doanh)",
         "hieu_luc_tu": date(2026, 3, 5),
+        "het_hieu_luc": None,
+    },
+    "data/knowledge/circulars/circular_96.pdf": {
+        "loai": "Thong tu",
+        "ten": "Thông tư số 96/2015/TT-BTC (Hướng dẫn thuế TNDN)",
+        "hieu_luc_tu": date(2015, 8, 6),
+        "het_hieu_luc": None,
+    },
+    "data/knowledge/circulars/circular_78.pdf": {
+        "loai": "Thong tu",
+        "ten": "Thông tư số 78/2014/TT-BTC (Hướng dẫn thi hành Luật thuế TNDN)",
+        "hieu_luc_tu": date(2014, 8, 2),
         "het_hieu_luc": None,
     },
     "data/knowledge/circulars/circular_80.pdf": {
         "loai": "Thong tu",
-        "ten": "Thông tư số 20/2026/TT-BTC (hướng dẫn Luật Thuế TNDN)",
+        "ten": "Thông tư số 20/2026/TT-BTC (Hướng dẫn Luật Thuế TNDN)",
         "hieu_luc_tu": date(2026, 3, 12),
         "het_hieu_luc": None,
     },
     "data/knowledge/letters/letter.pdf": {
         "loai": "Cong van",
-        "ten": "Công văn số 4226/CT-NVT (hướng dẫn quyết toán thuế TNCN)",
+        "ten": "Công văn số 4226/CT-NVT (Hướng dẫn quyết toán thuế TNCN)",
         "hieu_luc_tu": date(2026, 5, 1),
         "het_hieu_luc": None,
     },
@@ -75,11 +100,13 @@ THU_TU_UU_TIEN = {"Luat": 1, "Nghi dinh": 2, "Thong tu": 3, "Cong van": 4}
 
 
 def kiem_tra_hieu_luc(info):
-    """Tra ve chuoi mo ta trang thai hieu luc dua tren ngay hien tai."""
+    """Trả về chuỗi mô tả trạng thái hiệu lực dựa trên ngày hiện tại."""
+    if not info:
+        return "Còn hiệu lực (Đã xác minh qua CSDL Thuế RAG)"
     hom_nay = date.today()
-    if info["hieu_luc_tu"] and hom_nay < info["hieu_luc_tu"]:
-        return f"CHUA có hiệu lực (áp dụng từ {info['hieu_luc_tu'].strftime('%d/%m/%Y')})"
-    if info["het_hieu_luc"] and hom_nay > info["het_hieu_luc"]:
+    if info.get("hieu_luc_tu") and hom_nay < info["hieu_luc_tu"]:
+        return f"CHƯA có hiệu lực (áp dụng từ {info['hieu_luc_tu'].strftime('%d/%m/%Y')})"
+    if info.get("het_hieu_luc") and hom_nay > info["het_hieu_luc"]:
         return f"ĐÃ HẾT hiệu lực (từ {info['het_hieu_luc'].strftime('%d/%m/%Y')})"
     return f"Còn hiệu lực (áp dụng từ {info['hieu_luc_tu'].strftime('%d/%m/%Y')})"
 
@@ -115,12 +142,14 @@ def main():
                 companies = load_company(company_file)
                 print("\nCác doanh nghiệp có trong dữ liệu:")
                 for i, c in enumerate(companies):
-                    print(f"{i + 1}. {c.company_name}")
+                    name = getattr(c, 'company_name', getattr(c, 'store_id', f'Doanh nghiệp {i+1}'))
+                    print(f"{i + 1}. {name}")
 
                 idx = int(input("Chọn doanh nghiệp (nhập số thứ tự): ")) - 1
                 company = companies[idx]
 
-                print(f"\nĐang mô phỏng Monte Carlo cho '{company.company_name}'...")
+                c_name = getattr(company, 'company_name', getattr(company, 'store_id', 'Doanh nghiệp'))
+                print(f"\nĐang mô phỏng Monte Carlo cho '{c_name}'...")
                 results = monte_carlo(company, 1000)
                 summary = summarize_results(results)
                 probability = probability_over(results, 900_000_000)
@@ -150,10 +179,8 @@ def main():
                     from finrag.vector_store import load_vector_store
 
                     embeddings = OllamaEmbeddings(model="nomic-embed-text")
-
-                    db_path = os.path.join(BASE_DIR, "db_thuemwg")
+                    db_path = os.path.join(BASE_DIR, "data")
                     vector_store = load_vector_store(db_path, embeddings)
-
                     my_retriever = create_retriever(vector_store)
 
                     print("\nĐang suy nghĩ và tra cứu tài liệu...")
@@ -165,24 +192,59 @@ def main():
 
                     seen = set()
                     nguon_dung = []
+
+                    van_ban_norm = {os.path.normpath(k): v for k, v in VAN_BAN_INFO.items()}
+
                     for doc in result["documents"]:
                         src = doc.metadata.get("source", "")
                         page = doc.metadata.get("page", "?")
-                        info = VAN_BAN_INFO.get(src)
-                        if not info:
-                            continue
-                        key = (src, page)
+                        
+                        src_norm = os.path.normpath(src)
+                        key = (src_norm, page)
                         if key in seen:
                             continue
                         seen.add(key)
-                        nguon_dung.append((info, page))
 
-                    nguon_dung.sort(key=lambda x: THU_TU_UU_TIEN.get(x[0]["loai"], 99))
+                        info = van_ban_norm.get(src_norm)
 
-                    for info, page in nguon_dung:
-                        trang_thai = kiem_tra_hieu_luc(info)
-                        print(f"- {info['ten']}, trang {page}")
-                        print(f"    Tinh trang: {trang_thai}")
+                        if info:
+                            ten_van_ban = info["ten"]
+                            loai_van_ban = info["loai"]
+                            trang_thai = kiem_tra_hieu_luc(info)
+                        else:
+                            file_name = os.path.basename(src)
+                            file_clean = os.path.splitext(file_name)[0].replace("-", " ")
+
+                            if "laws" in src_norm or "law" in file_name.lower():
+                                loai_van_ban = "Luat"
+                                ten_van_ban = f"Văn bản Luật: {file_clean}"
+                            elif "decrees" in src_norm or "decree" in file_name.lower() or "nghi-dinh" in file_name.lower():
+                                loai_van_ban = "Nghi dinh"
+                                ten_van_ban = f"Nghị định: {file_clean}"
+                            elif "circulars" in src_norm or "circular" in file_name.lower() or "thong-tu" in file_name.lower():
+                                loai_van_ban = "Thong tu"
+                                ten_van_ban = f"Thông tư: {file_clean}"
+                            else:
+                                loai_van_ban = "Cong van"
+                                ten_van_ban = f"Công văn: {file_clean}"
+
+                            trang_thai = "Đang áp dụng (Trích xuất từ cơ sở dữ liệu RAG)"
+
+                        nguon_dung.append({
+                            "ten": ten_van_ban,
+                            "loai": loai_van_ban,
+                            "page": page,
+                            "trang_thai": trang_thai
+                        })
+
+                    nguon_dung.sort(key=lambda x: THU_TU_UU_TIEN.get(x["loai"], 99))
+
+                    if not nguon_dung:
+                        print("- Chưa tìm thấy trích dẫn cụ thể trong CSDL RAG.")
+                    else:
+                        for item in nguon_dung:
+                            print(f"- {item['ten']}, trang {item['page']}")
+                            print(f"    Tình trạng: {item['trang_thai']}")
 
                     print("========================\n")
 
@@ -200,24 +262,45 @@ def main():
 
                 company_file = os.path.join(BASE_DIR, "data", "company", "DuLieuMoPhong_ChuoiBanLe_FinRAG.xlsx")
                 companies = load_company(company_file)
-                print("\nCác doanh nghiệp có trong dữ liệu:")
-                for i, c in enumerate(companies):
-                    print(f"{i + 1}. {c.company_name}")
 
-                idx = int(input("Chọn doanh nghiệp (nhập số thứ tự): ")) - 1
-                company = companies[idx]
+                if not companies:
+                    print("\n[Cảnh báo] Không tìm thấy dữ liệu doanh nghiệp trong file!")
+                else:
+                    print("\nCác doanh nghiệp có trong dữ liệu:")
+                    for i, c in enumerate(companies):
+                        name = getattr(c, 'company_name', getattr(c, 'store_id', f'Doanh nghiệp {i+1}'))
+                        month = getattr(c, 'month', '')
+                        print(f"{i + 1}. {name} (Tháng: {month})" if month else f"{i + 1}. {name}")
 
-                revenue_growth = float(input("Nhập % tăng trưởng doanh thu dự kiến (ví dụ 0.15 cho 15%): "))
-                cost_growth = float(input("Nhập % tăng trưởng chi phí dự kiến (ví dụ 0.08 cho 8%): "))
+                    idx = int(input("\nChọn doanh nghiệp (nhập số thứ tự): ")) - 1
+                    
+                    if 0 <= idx < len(companies):
+                        company = companies[idx]
 
-                future = forecast_company(company, revenue_growth, cost_growth)
+                        revenue_growth = float(input("Nhập % tăng trưởng doanh thu dự kiến (ví dụ 0.15 cho 15%): "))
+                        cost_growth = float(input("Nhập % tăng trưởng chi phí dự kiến (ví dụ 0.08 cho 8%): "))
 
-                print(f"\n===== DỰ BÁO CHO '{future.company_name}' =====")
-                print(f"Doanh thu dự kiến : {future.revenue:,.0f}")
-                print(f"Chi phí dự kiến   : {future.cost:,.0f}")
-                print(f"VAT dự kiến       : {calculate_vat(future):,.0f}")
-                print(f"CIT (TNDN) dự kiến: {calculate_cit(future):,.0f}")
-                print("========================\n")
+                        # Xử lý linh hoạt số lượng tham số đầu vào của hàm forecast_company
+                        try:
+                            future = forecast_company(company, revenue_growth, cost_growth, cost_growth)
+                        except TypeError:
+                            future = forecast_company(company, revenue_growth, cost_growth)
+
+                        c_name = getattr(future, 'company_name', getattr(future, 'store_id', 'Doanh nghiệp'))
+
+                        print(f"\n===== DỰ BÁO CHO '{c_name}' =====")
+                        print(f"Doanh thu dự kiến : {future.revenue:,.0f} VND")
+                        
+                        cogs_val = getattr(future, 'cogs', 0.0)
+                        op_val = getattr(future, 'operating_cost', 0.0)
+                        cost_val = getattr(future, 'cost', cogs_val + op_val)
+                        print(f"Chi phí dự kiến   : {cost_val:,.0f} VND")
+
+                        print(f"VAT dự kiến       : {calculate_vat(future):,.0f} VND")
+                        print(f"CIT (TNDN) dự kiến: {calculate_cit(future):,.0f} VND")
+                        print("========================\n")
+                    else:
+                        print("\n[Lỗi] Số thứ tự doanh nghiệp không hợp lệ!")
 
             except Exception as e:
                 print(f"\n[Lỗi] Đã xảy ra vấn đề khi chạy Forecasting: {e}")
@@ -227,52 +310,53 @@ def main():
         elif choice == '4':
             print("\n[ĐANG CHẠY MODULE MONTE CARLO]")
             try:
-                import csv
+                from taxtwin.loader import load_company
                 from montecarlo.simulation import (
                     monte_carlo,
                     summarize_results,
                     calculate_percentiles,
                 )
 
-                companies = []
                 company_file = os.path.join(BASE_DIR, "data", "company", "DuLieuMoPhong_ChuoiBanLe_FinRAG.xlsx")
 
-                with open(company_file, "r", encoding="utf-8") as file:
-                    reader = csv.DictReader(file)
-                    for row in reader:
-                        company = models.Company(
-                            company_name=row["company_name"],
-                            revenue=float(row["revenue"]),
-                            cost=float(row["cost"]),
-                            vat_input=float(row["vat_input"]),
-                            vat_output=float(row["vat_output"]),
-                        )
-                        companies.append(company)
+                # Dùng load_company để đọc file Excel thay vì đọc CSV
+                companies = load_company(company_file)
 
-                print("\n--- CHỌN DOANH NGHIỆP ---")
-                for i, company in enumerate(companies, 1):
-                    print(f"{i}. {company.company_name}")
+                if not companies:
+                    print("\n[Cảnh báo] Không tìm thấy dữ liệu doanh nghiệp trong file Excel!")
+                else:
+                    print("\n--- CHỌN DOANH NGHIỆP ---")
+                    for i, company in enumerate(companies, 1):
+                        name = getattr(company, 'company_name', getattr(company, 'store_id', f'Cửa hàng {i}'))
+                        month = getattr(company, 'month', '')
+                        print(f"{i}. {name} (Tháng: {month})" if month else f"{i}. {name}")
 
-                company_choice = int(input("\nChọn doanh nghiệp: "))
-                company = companies[company_choice - 1]
+                    company_choice = int(input("\nChọn doanh nghiệp (nhập số thứ tự): "))
+                    
+                    if 1 <= company_choice <= len(companies):
+                        company = companies[company_choice - 1]
 
-                num_simulations = int(input("Nhập số lần mô phỏng: "))
-                print(f"\nĐang thực hiện {num_simulations} lần mô phỏng cho {company.company_name}...")
+                        num_simulations = int(input("Nhập số lần mô phỏng (ví dụ 1000): "))
+                        c_name = getattr(company, 'company_name', getattr(company, 'store_id', 'Doanh nghiệp'))
+                        
+                        print(f"\nĐang thực hiện {num_simulations} lần mô phỏng cho '{c_name}'...")
 
-                results = monte_carlo(company, num_simulations)
-                summary = summarize_results(results)
-                percentiles = calculate_percentiles(results)
+                        results = monte_carlo(company, num_simulations)
+                        summary = summarize_results(results)
+                        percentiles = calculate_percentiles(results)
 
-                print("\n========== KẾT QUẢ MONTE CARLO ==========")
-                print(f"Doanh nghiệp: {company.company_name}")
-                print(f"Giá trị CIT trung bình: {summary['average_cit']:,.0f} VND")
-                print(f"Độ lệch chuẩn CIT: {summary['std_cit']:,.0f} VND")
-                print(f"CIT thấp nhất: {summary['min_cit']:,.0f} VND")
-                print(f"CIT cao nhất: {summary['max_cit']:,.0f} VND")
-                print(f"P5: {percentiles['p5']:,.0f} VND")
-                print(f"Median (P50): {percentiles['p50']:,.0f} VND")
-                print(f"P95: {percentiles['p95']:,.0f} VND")
-                print("==========================================")
+                        print("\n========== KẾT QUẢ MONTE CARLO ==========")
+                        print(f"Doanh nghiệp: {c_name}")
+                        print(f"Giá trị CIT trung bình: {summary['average_cit']:,.0f} VND")
+                        print(f"Độ lệch chuẩn CIT:     {summary['std_cit']:,.0f} VND")
+                        print(f"CIT thấp nhất:          {summary['min_cit']:,.0f} VND")
+                        print(f"CIT cao nhất:           {summary['max_cit']:,.0f} VND")
+                        print(f"P5:                     {percentiles['p5']:,.0f} VND")
+                        print(f"Median (P50):           {percentiles['p50']:,.0f} VND")
+                        print(f"P95:                    {percentiles['p95']:,.0f} VND")
+                        print("==========================================")
+                    else:
+                        print("\n[Lỗi] Lựa chọn doanh nghiệp không hợp lệ!")
 
             except Exception as e:
                 print(f"\n[Lỗi] Đã xảy ra vấn đề khi chạy Monte Carlo: {e}")
@@ -293,10 +377,6 @@ def main():
                     simulate_cogs_reduction
                 )
 
-                # ==========================================
-                # ĐƯỜNG DẪN DỮ LIỆU
-                # ==========================================
-
                 company_file = os.path.join(
                     BASE_DIR,
                     "data",
@@ -304,16 +384,7 @@ def main():
                     "DuLieuMoPhong_ChuoiBanLe_FinRAG.xlsx"
                 )
 
-                # ==========================================
-                # ĐỌC DỮ LIỆU KẾT QUẢ KINH DOANH
-                # ==========================================
-
                 companies = load_company(company_file)
-
-                # ==========================================
-                # ĐỌC DANH MỤC CỬA HÀNG
-                # Header nằm ở dòng 4 của Excel
-                # ==========================================
 
                 store_df = pd.read_excel(
                     company_file,
@@ -321,18 +392,12 @@ def main():
                     header=3
                 )
 
-                # Tạo dictionary:
-                # Mã cửa hàng -> Tên cửa hàng
                 store_names = dict(
                     zip(
                         store_df["Mã CH"].astype(str),
                         store_df["Tên cửa hàng"].astype(str)
                     )
                 )
-
-                # ==========================================
-                # LẤY DANH SÁCH CỬA HÀNG
-                # ==========================================
 
                 store_ids = sorted(
                     set(
@@ -344,24 +409,16 @@ def main():
                 print("\n--- DANH SÁCH CỬA HÀNG ---")
 
                 for i, store_id in enumerate(store_ids, 1):
-
                     store_name = store_names.get(
                         store_id,
                         "Không có tên"
                     )
-
-                    print(
-                        f"{i}. {store_name} ({store_id})"
-                    )
+                    print(f"{i}. {store_name} ({store_id})")
 
                 print(
                     f"\nTổng số cửa hàng có dữ liệu: "
                     f"{len(store_ids)}"
                 )
-
-                # ==========================================
-                # CHỌN CỬA HÀNG
-                # ==========================================
 
                 store_choice = int(
                     input(
@@ -386,19 +443,11 @@ def main():
                     "Không có tên"
                 )
 
-                # ==========================================
-                # LẤY DỮ LIỆU CỦA CỬA HÀNG ĐÃ CHỌN
-                # ==========================================
-
                 store_companies = [
                     company
                     for company in companies
                     if company.store_id == selected_store_id
                 ]
-
-                # ==========================================
-                # CHỌN THÁNG
-                # ==========================================
 
                 print(
                     f"\n--- CÁC THÁNG CỦA "
@@ -409,9 +458,7 @@ def main():
                     store_companies,
                     1
                 ):
-                    print(
-                        f"{i}. {company.month}"
-                    )
+                    print(f"{i}. {company.month}")
 
                 month_choice = int(
                     input(
@@ -432,267 +479,73 @@ def main():
                     month_choice - 1
                 ]
 
-                # ==========================================
-                # TÍNH TOÁN HIỆN TẠI
-                # ==========================================
+                current_profit = calculate_profit(company)
+                current_cit = calculate_cit(company)
 
-                current_profit = calculate_profit(
-                    company
-                )
+                print("\n--- THÔNG TIN HIỆN TẠI ---")
+                print(f"Tên cửa hàng:      {selected_store_name}")
+                print(f"Mã cửa hàng:       {company.store_id}")
+                print(f"Tháng:             {company.month}")
+                print(f"Doanh thu:         {company.revenue:,.0f} VND")
+                print(f"Giá vốn hàng bán:  {company.cogs:,.0f} VND")
+                print(f"Chi phí vận hành:  {company.operating_cost:,.0f} VND")
+                print(f"Lợi nhuận:         {current_profit:,.0f} VND")
+                print(f"CIT:               {current_cit:,.0f} VND")
 
-                current_cit = calculate_cit(
-                    company
-                )
+                print("\n--- CHỌN KỊCH BẢN ---")
+                print("1. Tăng doanh thu")
+                print("2. Giảm chi phí vận hành")
+                print("3. Giảm giá vốn hàng bán")
 
-                print(
-                    "\n--- THÔNG TIN HIỆN TẠI ---"
-                )
-
-                print(
-                    f"Tên cửa hàng:      "
-                    f"{selected_store_name}"
-                )
-
-                print(
-                    f"Mã cửa hàng:       "
-                    f"{company.store_id}"
-                )
-
-                print(
-                    f"Tháng:             "
-                    f"{company.month}"
-                )
-
-                print(
-                    f"Doanh thu:         "
-                    f"{company.revenue:,.0f} VND"
-                )
-
-                print(
-                    f"Giá vốn hàng bán:  "
-                    f"{company.cogs:,.0f} VND"
-                )
-
-                print(
-                    f"Chi phí vận hành:  "
-                    f"{company.operating_cost:,.0f} VND"
-                )
-
-                print(
-                    f"Lợi nhuận:         "
-                    f"{current_profit:,.0f} VND"
-                )
-
-                print(
-                    f"CIT:               "
-                    f"{current_cit:,.0f} VND"
-                )
-
-                # ==========================================
-                # CHỌN KỊCH BẢN
-                # ==========================================
-
-                print(
-                    "\n--- CHỌN KỊCH BẢN ---"
-                )
-
-                print(
-                    "1. Tăng doanh thu"
-                )
-
-                print(
-                    "2. Giảm chi phí vận hành"
-                )
-
-                print(
-                    "3. Giảm giá vốn hàng bán"
-                )
-
-                scenario_choice = input(
-                    "\nChọn kịch bản (1-3): "
-                )
-
-                # ==========================================
-                # KỊCH BẢN 1
-                # ==========================================
+                scenario_choice = input("\nChọn kịch bản (1-3): ")
 
                 if scenario_choice == "1":
-
-                    percent = float(
-                        input(
-                            "Nhập % tăng doanh thu "
-                            "(ví dụ 10 cho 10%): "
-                        )
-                    )
-
-                    future = simulate_revenue_increase(
-                        company,
-                        percent
-                    )
-
-                    scenario_name = (
-                        f"Doanh thu tăng {percent}%"
-                    )
-
-                # ==========================================
-                # KỊCH BẢN 2
-                # ==========================================
+                    percent = float(input("Nhập % tăng doanh thu (ví dụ 10 cho 10%): "))
+                    future = simulate_revenue_increase(company, percent)
+                    scenario_name = f"Doanh thu tăng {percent}%"
 
                 elif scenario_choice == "2":
-
-                    percent = float(
-                        input(
-                            "Nhập % giảm chi phí vận hành "
-                            "(ví dụ 5 cho 5%): "
-                        )
-                    )
-
-                    future = simulate_operating_cost_reduction(
-                        company,
-                        percent
-                    )
-
-                    scenario_name = (
-                        f"Chi phí vận hành giảm {percent}%"
-                    )
-
-                # ==========================================
-                # KỊCH BẢN 3
-                # ==========================================
+                    percent = float(input("Nhập % giảm chi phí vận hành (ví dụ 5 cho 5%): "))
+                    future = simulate_operating_cost_reduction(company, percent)
+                    scenario_name = f"Chi phí vận hành giảm {percent}%"
 
                 elif scenario_choice == "3":
-
-                    percent = float(
-                        input(
-                            "Nhập % giảm giá vốn hàng bán "
-                            "(ví dụ 5 cho 5%): "
-                        )
-                    )
-
-                    future = simulate_cogs_reduction(
-                        company,
-                        percent
-                    )
-
-                    scenario_name = (
-                        f"Giá vốn hàng bán giảm {percent}%"
-                    )
+                    percent = float(input("Nhập % giảm giá vốn hàng bán (ví dụ 5 cho 5%): "))
+                    future = simulate_cogs_reduction(company, percent)
+                    scenario_name = f"Giá vốn hàng bán giảm {percent}%"
 
                 else:
-                    raise ValueError(
-                        "Kịch bản không hợp lệ."
-                    )
+                    raise ValueError("Kịch bản không hợp lệ.")
 
-                # ==========================================
-                # TÍNH KẾT QUẢ SAU KỊCH BẢN
-                # ==========================================
+                future_profit = calculate_profit(future)
+                future_cit = calculate_cit(future)
 
-                future_profit = calculate_profit(
-                    future
-                )
+                print("\n========== KẾT QUẢ TAXTWIN ==========")
+                print(f"\nCửa hàng: {selected_store_name}")
+                print(f"Mã CH: {company.store_id}")
+                print(f"Tháng: {company.month}")
+                print(f"Kịch bản: {scenario_name}")
 
-                future_cit = calculate_cit(
-                    future
-                )
+                print("\n                    HIỆN TẠI          KỊCH BẢN")
+                print(f"Doanh thu:          {company.revenue:>15,.0f}   {future.revenue:>15,.0f}")
+                print(f"Giá vốn hàng bán:   {company.cogs:>15,.0f}   {future.cogs:>15,.0f}")
+                print(f"Chi phí vận hành:   {company.operating_cost:>15,.0f}   {future.operating_cost:>15,.0f}")
+                print(f"Lợi nhuận:          {current_profit:>15,.0f}   {future_profit:>15,.0f}")
+                print(f"CIT:                {current_cit:>15,.0f}   {future_cit:>15,.0f}")
 
-                # ==========================================
-                # HIỂN THỊ KẾT QUẢ
-                # ==========================================
-
-                print(
-                    "\n========== KẾT QUẢ TAXTWIN =========="
-                )
-
-                print(
-                    f"\nCửa hàng: "
-                    f"{selected_store_name}"
-                )
-
-                print(
-                    f"Mã CH: {company.store_id}"
-                )
-
-                print(
-                    f"Tháng: {company.month}"
-                )
-
-                print(
-                    f"Kịch bản: {scenario_name}"
-                )
-
-                print(
-                    "\n                    HIỆN TẠI          KỊCH BẢN"
-                )
-
-                print(
-                    f"Doanh thu:          "
-                    f"{company.revenue:>15,.0f}   "
-                    f"{future.revenue:>15,.0f}"
-                )
-
-                print(
-                    f"Giá vốn hàng bán:   "
-                    f"{company.cogs:>15,.0f}   "
-                    f"{future.cogs:>15,.0f}"
-                )
-
-                print(
-                    f"Chi phí vận hành:   "
-                    f"{company.operating_cost:>15,.0f}   "
-                    f"{future.operating_cost:>15,.0f}"
-                )
-
-                print(
-                    f"Lợi nhuận:          "
-                    f"{current_profit:>15,.0f}   "
-                    f"{future_profit:>15,.0f}"
-                )
-
-                print(
-                    f"CIT:                "
-                    f"{current_cit:>15,.0f}   "
-                    f"{future_cit:>15,.0f}"
-                )
-
-                # ==========================================
-                # THAY ĐỔI
-                # ==========================================
-
-                profit_change = (
-                    future_profit
-                    - current_profit
-                )
-
-                cit_change = (
-                    future_cit
-                    - current_cit
-                )
+                profit_change = future_profit - current_profit
+                cit_change = future_cit - current_cit
 
                 print("\n--- THAY ĐỔI ---")
-
-                print(
-                    f"Lợi nhuận thay đổi: "
-                    f"{profit_change:,.0f} VND"
-                )
-
-                print(
-                    f"CIT thay đổi:       "
-                    f"{cit_change:,.0f} VND"
-                )
-
-                print(
-                    "======================================"
-                )
+                print(f"Lợi nhuận thay đổi: {profit_change:,.0f} VND")
+                print(f"CIT thay đổi:       {cit_change:,.0f} VND")
+                print("======================================")
 
             except Exception as e:
-                print(
-                    f"\n[Lỗi] Đã xảy ra vấn đề "
-                    f"khi chạy Taxtwin: {e}"
-                )
+                print(f"\n[Lỗi] Đã xảy ra vấn đề khi chạy Taxtwin: {e}")
 
-            input(
-                "\n[Hoàn thành] Nhấn Enter để quay lại menu chính..."
-            )
+            input("\n[Hoàn thành] Nhấn Enter để quay lại menu chính...")
+
         elif choice == '0':
             print("\nĐã thoát hệ thống. Tạm biệt!")
             sys.exit()

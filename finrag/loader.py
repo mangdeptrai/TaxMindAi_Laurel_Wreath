@@ -1,16 +1,17 @@
 from pathlib import Path
 
-from langchain_community.document_loaders import PyPDFLoader
+from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader
 
 from finrag.ocr import ocr_pdf
 
 
 def load_documents(folder_path: str):
     """
-    Đọc tất cả các tài liệu PDF trong cơ sở tri thức (Knowledge Base).
+    Đọc tất cả các tài liệu (PDF, DOCX) trong cơ sở tri thức (Knowledge Base).
 
     - PDF có text -> PyPDFLoader
     - PDF scan -> OCR
+    - Word (.docx) -> Docx2txtLoader
 
     Tham số:
         folder_path (str): Đường dẫn đến thư mục chứa cơ sở tri thức.
@@ -26,47 +27,58 @@ def load_documents(folder_path: str):
     if not folder.exists():
         raise FileNotFoundError(f"Folder not found: {folder}")
 
-    pdf_files = sorted(folder.rglob("*.pdf"))
+    # Lấy danh sách file PDF và DOCX (bỏ qua file tạm của Word bắt đầu bằng ~$)
+    files = sorted([
+        f for f in folder.rglob("*")
+        if f.suffix.lower() in [".pdf", ".docx"] and not f.name.startswith("~$")
+    ])
 
-    if not pdf_files:
-        print("No PDF files found.")
+    if not files:
+        print("No supported files (PDF/DOCX) found.")
         return []
 
-    print(f"Found {len(pdf_files)} PDF files.")
+    print(f"Found {len(files)} files (PDF/DOCX).")
 
-    for pdf_file in pdf_files:
+    for file_path in files:
 
-        print(f"\nLoading {pdf_file.name}...")
+        print(f"\nLoading {file_path.name}...")
 
-        # -----------------------------
-        # Đọc PDF bằng PyPDFLoader
-        # -----------------------------
-        loader = PyPDFLoader(str(pdf_file))
-        docs = loader.load()
+        docs = []
 
         # -----------------------------
-        # Kiểm tra PDF có text không
+        # Xử lý file PDF
         # -----------------------------
-        has_text = any(doc.page_content.strip() for doc in docs)
+        if file_path.suffix.lower() == ".pdf":
+            loader = PyPDFLoader(str(file_path))
+            docs = loader.load()
 
-        if has_text:
-            print("   ✓ Text PDF")
+            # Kiểm tra PDF có text không
+            has_text = any(doc.page_content.strip() for doc in docs)
 
-        else:
-            print("   ✓ Scanned PDF -> OCR")
+            if has_text:
+                print("   ✓ Text PDF")
+            else:
+                print("   ✓ Scanned PDF -> OCR")
+                docs = ocr_pdf(str(file_path))
 
-            docs = ocr_pdf(str(pdf_file))
+        # -----------------------------
+        # Xử lý file DOCX (Word)
+        # -----------------------------
+        elif file_path.suffix.lower() == ".docx":
+            print("   ✓ Word Document (.docx)")
+            loader = Docx2txtLoader(str(file_path))
+            docs = loader.load()
 
         # -----------------------------
         # Bổ sung metadata
         # -----------------------------
         for doc in docs:
-            doc.metadata["category"] = pdf_file.parent.name
-            doc.metadata["filename"] = pdf_file.name
-            doc.metadata["filepath"] = str(pdf_file)
+            doc.metadata["category"] = file_path.parent.name
+            doc.metadata["filename"] = file_path.name
+            doc.metadata["filepath"] = str(file_path)
 
         documents.extend(docs)
 
-    print(f"\nLoaded {len(documents)} pages.")
+    print(f"\nLoaded {len(documents)} pages/documents.")
 
     return documents

@@ -1,11 +1,7 @@
 from langchain_ollama import ChatOllama
 
-
-llm = ChatOllama(
-    model="qwen3:4b",
-    temperature=0.0,
-)
-
-
 def get_llm():
-    return llm
+    return ChatOllama(
+        model="qwen2.5:7b",
+        temperature=0.0  # Bắt buộc đặt = 0.0 để loại bỏ hoàn toàn tính sáng tạo/bịa đặt
+    )
